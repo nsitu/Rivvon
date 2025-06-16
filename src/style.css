@@ -1,0 +1,53 @@
+html,
+body {
+  margin: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+body {
+  overscroll-behavior: contain;
+}
+
+#slitCanvas {
+  display: none;
+}
+
+#drawCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  /* will enable during drawing mode */
+}
+
+#drawToggleBtn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 0.7em 1.3em;
+  border-radius: 1em;
+  font-size: 1.1em;
+  background: #333;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  opacity: 0.92;
+  user-select: none;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (pointer: coarse),
+(max-width: 600px) {
+  #drawToggleBtn {
+    padding: 1.3em 2.1em;
+    font-size: 1.5em;
+    border-radius: 1.8em;
+    min-width: 56px;
+    min-height: 56px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  }
+}
