@@ -64,7 +64,7 @@ let cameraStarted = false;
 
 function updateToggleBtn() {
   if (isDrawingMode) {
-    drawToggleBtn.textContent = "Draw";
+    drawToggleBtn.textContent = "Ok, Draw!";
     drawToggleBtn.style.background = "transparent";
   } else {
     drawToggleBtn.textContent = "+";
@@ -430,3 +430,52 @@ window.addEventListener('beforeunload', () => {
   const tracks = slitCanvas.srcObject?.getTracks?.();
   if (tracks) tracks.forEach(track => track.stop());
 });
+
+
+const saveBtn = document.getElementById('saveBtn'); // Make sure you have this button in your HTML
+
+if (saveBtn) {
+  saveBtn.addEventListener('click', async () => {
+    // Ensure the scene is rendered before capturing
+    renderer.render(scene, camera);
+
+    renderer.domElement.toBlob(async (blob) => {
+      if (blob) {
+        const file = new File([blob], 'screenshot.webp', { type: 'image/webp' });
+        try {
+          await uploadFileToPCloud(file);
+          alert('Screenshot uploaded successfully!');
+        } catch (error) {
+          console.error('Error uploading screenshot:', error);
+          alert('Failed to upload screenshot.');
+        }
+      } else {
+        console.error('Failed to create blob from canvas.');
+        alert('Failed to capture screenshot.');
+      }
+    }, 'image/webp', 0.9); // 0.9 is quality, adjust as needed
+  });
+}
+
+async function uploadFileToPCloud(file) {
+
+  console.log('Uploading file:', file);
+  // Step 1: Get upload link code
+  const response = await fetch('https://pcloud-upload-link.harold-b89.workers.dev/upload-link');
+  const { code } = await response.json();
+
+  console.log('Upload link code:', code);
+
+  const formData = new FormData();
+  formData.append('file', file, 'screenshot.webp');
+  // maybe use the user's IP address as the name?
+
+
+  const uploadResponse = await fetch(`https://api.pcloud.com/uploadtolink?code=${code}&names=Harold`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  const uploadResult = await uploadResponse.json();
+  console.log('Upload result:', uploadResult);
+}

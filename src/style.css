@@ -22,10 +22,8 @@ body {
   /* will enable during drawing mode */
 }
 
-#drawToggleBtn {
+button {
   position: absolute;
-  top: 10px;
-  left: 10px;
   z-index: 2;
   padding: 0.7em 1.3em;
   border-radius: 1em;
@@ -38,6 +36,16 @@ body {
   user-select: none;
   min-width: 44px;
   min-height: 44px;
+}
+
+#saveBtn {
+  bottom: 10px;
+  right: 10px;
+}
+
+#drawToggleBtn {
+  top: 10px;
+  left: 10px;
 }
 
 @media (pointer: coarse),
