@@ -1,40 +1,9 @@
+import './modules/polyfillMSTP.js';
 import './style.css'
-import * as THREE from 'three'
+import * as THREE from 'three';
 import { CatmullRomCurve3 } from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-
-
-
-// Polyfill for MediaStreamTrackProcessor (from Jan-Ivar)
-if (!self.MediaStreamTrackProcessor) {
-  console.log("Polyfilling MediaStreamTrackProcessor");
-  self.MediaStreamTrackProcessor = class MediaStreamTrackProcessor {
-    constructor({ track }) {
-      if (track.kind == "video") {
-        this.readable = new ReadableStream({
-          async start(controller) {
-            this.video = document.createElement("video");
-            this.video.srcObject = new MediaStream([track]);
-            await Promise.all([this.video.play(), new Promise(r => this.video.onloadedmetadata = r)]);
-            this.track = track;
-            this.canvas = new OffscreenCanvas(this.video.videoWidth, this.video.videoHeight);
-            this.ctx = this.canvas.getContext('2d', { desynchronized: true });
-            this.t1 = performance.now();
-          },
-          async pull(controller) {
-            while (performance.now() - this.t1 < 1000 / track.getSettings().frameRate) {
-              await new Promise(r => requestAnimationFrame(r));
-            }
-            this.t1 = performance.now();
-            this.ctx.drawImage(this.video, 0, 0);
-            controller.enqueue(new VideoFrame(this.canvas, { timestamp: this.t1 }));
-          }
-        });
-      }
-    }
-  };
-}
+import { initThree } from './modules/threeSetup.js';
+const { scene, camera, renderer, controls } = initThree();
 
 
 // --- Canvas & 3D setup ---
@@ -43,19 +12,6 @@ const slitCtx = slitCanvas.getContext('2d');
 const drawCanvas = document.getElementById('drawCanvas');
 const drawCtx = drawCanvas.getContext('2d');
 
-
-
-
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0, 10);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
 
 // --- UI toggle for drawing mode ---
 const drawToggleBtn = document.getElementById('drawToggleBtn');
@@ -72,17 +28,27 @@ function updateToggleBtn() {
   }
 }
 
-drawToggleBtn.addEventListener('click', () => {
+drawToggleBtn.addEventListener('click', async () => {
   if (!cameraStarted) {
+    drawToggleBtn.textContent = "Camera Starting...";
+    // Wait for the first frame to be processed.
+    await startSlitScan();
     cameraStarted = true;
-    startSlitScan();
+    // Set drawing mode on after initializing camera
+    isDrawingMode = true;
+    controls.enabled = false;
+    drawCanvas.style.pointerEvents = 'auto';
+    updateToggleBtn(); // This will set textContent to "Ok, Draw!" (or your desired text)
+    return;
+  } else {
+    // Toggle drawing mode normally.
+    isDrawingMode = !isDrawingMode;
+    controls.enabled = !isDrawingMode;
+    drawCanvas.style.pointerEvents = isDrawingMode ? 'auto' : 'none';
+    updateToggleBtn();
   }
-
-  isDrawingMode = !isDrawingMode;
-  controls.enabled = !isDrawingMode;
-  drawCanvas.style.pointerEvents = isDrawingMode ? 'auto' : 'none';
-  updateToggleBtn();
 });
+
 updateToggleBtn();
 drawCanvas.style.pointerEvents = 'none'; // Start with drawing OFF
 
@@ -142,9 +108,6 @@ function makeInitialW(numPoints = 80, width = 8, height = 5, z = 0) {
 // --- Ribbon builder with animated undulation ---
 function buildRibbonFromPoints(points, width = 1, time = 0) {
 
-
-
-
   if (points.length < 2) return;
 
   // Store for animation loop
@@ -183,6 +146,7 @@ function buildRibbonFromPoints(points, width = 1, time = 0) {
 
 
   let prevNormal = null;
+
 
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
@@ -353,18 +317,21 @@ const tryResolutions = async () => {
 
 const startSlitScan = async () => {
   try {
+    console.log("Starting slit-scan...");
     const stream = await tryResolutions();
+    console.log("Camera stream started:", stream);
     const track = stream.getVideoTracks()[0];
     const processor = new MediaStreamTrackProcessor({ track });
     const reader = processor.readable.getReader();
 
     const { value: firstFrame } = await reader.read();
+    console.log("First frame received:", firstFrame);
     const videoWidth = firstFrame.displayWidth;
     const videoHeight = firstFrame.displayHeight;
 
+    // Set canvas dimensions based on video and desired output.
     slitCanvas.width = videoWidth;
     slitCanvas.height = 512;
-
 
     // --- INITIAL GOLD GRADIENT ---
     const grad = slitCtx.createLinearGradient(0, 0, 0, slitCanvas.height);
@@ -389,8 +356,10 @@ const startSlitScan = async () => {
       row = (row + 1) % slitCanvas.height;
     };
 
+    // Process the first frame and then immediately resolve so we know the camera is ready.
     await processFrame(firstFrame);
 
+    // Setup texture and properties.
     ribbonTexture = new THREE.CanvasTexture(slitCanvas);
     ribbonTexture.wrapS = THREE.RepeatWrapping;
     ribbonTexture.wrapT = THREE.RepeatWrapping;
@@ -398,22 +367,23 @@ const startSlitScan = async () => {
     ribbonTexture.center.set(0.5, 0.5);
     ribbonTexture.rotation = Math.PI;
 
-    const animateSlit = async () => {
+    // Start processing subsequent frames (do not await so the promise can resolve).
+    (async function animateSlit() {
       while (true) {
         const { done, value: frame } = await reader.read();
         if (done) break;
         await processFrame(frame);
         ribbonTexture.needsUpdate = true;
       }
-    };
+    })();
 
-    animateSlit();
+    // Return once the first frame is ready.
+    return;
   } catch (e) {
     alert("Could not access camera: " + e);
     return;
   }
 };
-
 
 // --- Render Loop with animated ribbon ---
 function renderLoop() {
@@ -440,8 +410,8 @@ if (saveBtn) {
     renderer.render(scene, camera);
 
     renderer.domElement.toBlob(async (blob) => {
-      if (blob) {
-        const file = new File([blob], 'screenshot.webp', { type: 'image/webp' });
+      if (blob && blob.type && blob.type == 'image/png') {
+        const file = new File([blob], `screenshot.png`, { type: 'image/png' });
         try {
           await uploadFileToPCloud(file);
           alert('Screenshot uploaded successfully!');
@@ -453,7 +423,7 @@ if (saveBtn) {
         console.error('Failed to create blob from canvas.');
         alert('Failed to capture screenshot.');
       }
-    }, 'image/webp', 0.9); // 0.9 is quality, adjust as needed
+    }, 'image/png');
   });
 }
 
@@ -467,11 +437,13 @@ async function uploadFileToPCloud(file) {
   console.log('Upload link code:', code);
 
   const formData = new FormData();
-  formData.append('file', file, 'screenshot.webp');
+  formData.append('file', file, 'screenshot.png');
   // maybe use the user's IP address as the name?
 
+  // you need to include "names" as a parameter in the request body
+  // https://gist.github.com/jarvisluong/8371f07e284eec66de9987c9ccedec43
 
-  const uploadResponse = await fetch(`https://api.pcloud.com/uploadtolink?code=${code}&names=Harold`, {
+  const uploadResponse = await fetch(`https://api.pcloud.com/uploadtolink?code=${code}&names=rivvon`, {
     method: 'POST',
     body: formData,
   });
