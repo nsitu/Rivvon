@@ -3,6 +3,7 @@ import './style.css'
 import * as THREE from 'three';
 import { CatmullRomCurve3 } from 'three';
 import { initThree } from './modules/threeSetup.js';
+import { loadSvgPath, parseSvgContent, normalizePoints } from './modules/svgPathToPoints.js';
 const { scene, camera, renderer, controls } = initThree();
 
 
@@ -12,11 +13,44 @@ const slitCtx = slitCanvas.getContext('2d');
 const drawCanvas = document.getElementById('drawCanvas');
 const drawCtx = drawCanvas.getContext('2d');
 
+// --- Welcome screen and app initialization ---
+const welcomeScreen = document.getElementById('welcomeScreen');
+const startAppBtn = document.getElementById('startAppBtn');
 
-// --- UI toggle for drawing mode ---
+// Hide all app buttons initially until camera is started
+document.getElementById('drawToggleBtn').style.display = 'none';
+document.getElementById('saveBtn').style.display = 'none';
+document.getElementById('importSvgBtn').style.display = 'none';
+
+// Initialize app after user clicks start button
+startAppBtn.addEventListener('click', async () => {
+  startAppBtn.textContent = 'Starting camera...';
+  startAppBtn.disabled = true;
+
+  try {
+    // Initialize camera
+    await startSlitScan();
+
+    // Hide welcome screen
+    welcomeScreen.style.display = 'none';
+
+    // Show app buttons
+    document.getElementById('drawToggleBtn').style.display = 'block';
+    document.getElementById('saveBtn').style.display = 'block';
+    document.getElementById('importSvgBtn').style.display = 'block';
+
+    // Initialize ribbon
+    await initializeRibbon();
+  } catch (error) {
+    console.error('Error starting application:', error);
+    startAppBtn.textContent = 'Failed to start camera. Try again?';
+    startAppBtn.disabled = false;
+  }
+});
+
+// --- UI toggle for drawing mode (simplified, no camera handling) ---
 const drawToggleBtn = document.getElementById('drawToggleBtn');
 let isDrawingMode = false;
-let cameraStarted = false;
 
 function updateToggleBtn() {
   if (isDrawingMode) {
@@ -28,25 +62,11 @@ function updateToggleBtn() {
   }
 }
 
-drawToggleBtn.addEventListener('click', async () => {
-  if (!cameraStarted) {
-    drawToggleBtn.textContent = "Camera Starting...";
-    // Wait for the first frame to be processed.
-    await startSlitScan();
-    cameraStarted = true;
-    // Set drawing mode on after initializing camera
-    isDrawingMode = true;
-    controls.enabled = false;
-    drawCanvas.style.pointerEvents = 'auto';
-    updateToggleBtn(); // This will set textContent to "Ok, Draw!" (or your desired text)
-    return;
-  } else {
-    // Toggle drawing mode normally.
-    isDrawingMode = !isDrawingMode;
-    controls.enabled = !isDrawingMode;
-    drawCanvas.style.pointerEvents = isDrawingMode ? 'auto' : 'none';
-    updateToggleBtn();
-  }
+drawToggleBtn.addEventListener('click', () => {
+  isDrawingMode = !isDrawingMode;
+  controls.enabled = !isDrawingMode;
+  drawCanvas.style.pointerEvents = isDrawingMode ? 'auto' : 'none';
+  updateToggleBtn();
 });
 
 updateToggleBtn();
@@ -75,36 +95,6 @@ function screenToWorld(x, y, depthFromCamera = 5) {
   return point;
 }
 
-// function screenToWorld(x, y) {
-//   const ndc = new THREE.Vector2(
-//     (x / window.innerWidth) * 2 - 1,
-//     -(y / window.innerHeight) * 2 + 1
-//   );
-//   const ray = new THREE.Raycaster();
-//   ray.setFromCamera(ndc, camera);
-//   const point = new THREE.Vector3();
-//   ray.ray.at(8, point); // fixed Z depth
-//   return point;
-// }
-
-function makeInitialW(numPoints = 80, width = 8, height = 5, z = 0) {
-  // Create a 'W' using two sine waves, joined in the middle
-  const points = [];
-  for (let i = 0; i < numPoints; i++) {
-    // x goes from -width/2 to width/2
-    const x = (i / (numPoints - 1) - 0.5) * width;
-    // W shape: two valleys, one peak, smooth
-    const phase = (i / (numPoints - 1));
-    // Use two joined sine waves for a W-like curve
-    const y =
-      (Math.sin(phase * Math.PI * 2 * 2) * 0.6 + // Main "W" dips
-        Math.sin(phase * Math.PI * 2) * 0.4) * height * 0.5;
-    points.push(new THREE.Vector3(x, y, z));
-  }
-  return points;
-}
-
-
 // --- Ribbon builder with animated undulation ---
 function buildRibbonFromPoints(points, width = 1, time = 0) {
 
@@ -129,9 +119,6 @@ function buildRibbonFromPoints(points, width = 1, time = 0) {
     const p2 = curve.getPoint(Math.min(t + delta, 1));
     return p2.clone().sub(p1).normalize();
   };
-
-
-
 
   const segments = 600;
   const geometry = new THREE.BufferGeometry();
@@ -201,11 +188,25 @@ function buildRibbonFromPoints(points, width = 1, time = 0) {
   scene.add(ribbonMesh);
 }
 
-const initialW = makeInitialW();
-buildRibbonFromPoints(initialW, 1.2);
-lastRibbonBuildPoints = initialW.map(p => p.clone());
-lastRibbonBuildWidth = 1.2;
 
+async function initializeRibbon() {
+  try {
+    // Try to load the SVG path
+    const svgPoints = await loadSvgPath('/src/assets/R.svg', 80, 5, 0);
+
+    if (svgPoints && svgPoints.length >= 2) {
+      // Use the normalizePoints function to scale and center
+      const normalizedPoints = normalizePoints(svgPoints);
+      buildRibbonFromPoints(normalizedPoints, 1.2);
+      lastRibbonBuildPoints = normalizedPoints.map(p => p.clone());
+      lastRibbonBuildWidth = 1.2;
+    } else {
+      console.error("Could not extract points from the SVG file.");
+    }
+  } catch (error) {
+    console.error("Error initializing ribbon from SVG:", error);
+  }
+}
 
 function updateAnimatedRibbon(time) {
   if (lastRibbonBuildPoints.length >= 2) {
@@ -380,8 +381,9 @@ const startSlitScan = async () => {
     // Return once the first frame is ready.
     return;
   } catch (e) {
+    console.error("Camera access error:", e);
     alert("Could not access camera: " + e);
-    return;
+    throw e; // Re-throw so we can handle in the welcome flow
   }
 };
 
@@ -402,7 +404,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 
-const saveBtn = document.getElementById('saveBtn'); // Make sure you have this button in your HTML
+const saveBtn = document.getElementById('saveBtn');
 
 if (saveBtn) {
   saveBtn.addEventListener('click', async () => {
@@ -428,7 +430,6 @@ if (saveBtn) {
 }
 
 async function uploadFileToPCloud(file) {
-
   console.log('Uploading file:', file);
   // Step 1: Get upload link code
   const response = await fetch('https://pcloud-upload-link.harold-b89.workers.dev/upload-link');
@@ -438,10 +439,6 @@ async function uploadFileToPCloud(file) {
 
   const formData = new FormData();
   formData.append('file', file, 'screenshot.png');
-  // maybe use the user's IP address as the name?
-
-  // you need to include "names" as a parameter in the request body
-  // https://gist.github.com/jarvisluong/8371f07e284eec66de9987c9ccedec43
 
   const uploadResponse = await fetch(`https://api.pcloud.com/uploadtolink?code=${code}&names=rivvon`, {
     method: 'POST',
@@ -450,4 +447,51 @@ async function uploadFileToPCloud(file) {
 
   const uploadResult = await uploadResponse.json();
   console.log('Upload result:', uploadResult);
+}
+
+
+// Add SVG import functionality
+const importSvgBtn = document.getElementById('importSvgBtn');
+
+if (importSvgBtn) {
+  // Create a hidden file input
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.svg';
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+
+  // Handle import button click
+  importSvgBtn.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  // Handle file selection
+  fileInput.addEventListener('change', async (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      try {
+        // Read the SVG file content
+        const svgText = await file.text();
+
+        // Use our shared parsing function
+        const svgPoints = parseSvgContent(svgText, 80, 5, 0);
+
+        if (svgPoints && svgPoints.length >= 2) {
+          // Use the normalizePoints function to scale and center
+          const normalizedPoints = normalizePoints(svgPoints);
+
+          buildRibbonFromPoints(normalizedPoints, 1.2);
+          lastRibbonBuildPoints = normalizedPoints.map(p => p.clone());
+          lastRibbonBuildWidth = 1.2;
+        } else {
+          alert('Could not extract points from the SVG file.');
+        }
+      } catch (error) {
+        console.error('Error processing SVG file:', error);
+        alert('Error processing SVG file: ' + error.message);
+      }
+    }
+  });
 }

@@ -6,7 +6,7 @@
   <link
     rel="icon"
     type="image/svg+xml"
-    href="/rivvon.svg"
+    href="/R.svg"
   />
   <meta
     name="viewport"
@@ -16,8 +16,47 @@
 </head>
 
 <body>
+  <!-- Welcome screen overlay -->
+  <div
+    id="welcomeScreen"
+    class="welcome-overlay"
+  >
+    <div class="welcome-content">
+      <img
+        src="/rivvon.svg"
+        alt="Rivvon Logo"
+      />
+      <p>Video Ribbon Creator</p>
+      <button id="startAppBtn">Start</button>
+    </div>
+  </div>
+
   <button id="drawToggleBtn">+</button>
   <button id="saveBtn">Save</button>
+
+  <button
+    id="importSvgBtn"
+    title="Import SVG"
+  >
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="17 8 12 3 7 8"></polyline>
+      <line
+        x1="12"
+        y1="3"
+        x2="12"
+        y2="15"
+      ></line>
+    </svg>
+  </button>
+
   <canvas id="slitCanvas"></canvas>
   <canvas id="drawCanvas"></canvas>
   <script
