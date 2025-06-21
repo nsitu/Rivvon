@@ -50,6 +50,7 @@ startAppBtn.addEventListener('click', async () => {
 
 // --- UI toggle for drawing mode ---
 const drawToggleBtn = document.getElementById('drawToggleBtn');
+const viewToggleBtn = document.getElementById('viewToggleBtn');
 const checkerboardDiv = document.getElementById('checkerboard');
 let isDrawingMode = false;
 
@@ -58,40 +59,54 @@ checkerboardDiv.style.display = 'none';
 
 function updateToggleBtn() {
   if (isDrawingMode) {
-    drawToggleBtn.textContent = "Ok, Draw!";
-    drawToggleBtn.style.background = "transparent";
     drawCanvas.style.pointerEvents = 'auto';
 
     // Show the checkerboard and draw canvas
     checkerboardDiv.style.display = 'block';
 
-
     // Hide 3D scene during drawing
     renderer.domElement.style.opacity = '0';
 
+    // Update button styles
+    drawToggleBtn.classList.add('active-mode');
+    viewToggleBtn.classList.remove('active-mode');
+
   } else {
-    drawToggleBtn.textContent = "+";
-    drawToggleBtn.style.background = "#333";
     drawCanvas.style.pointerEvents = 'none';
 
     // Hide the checkerboard
     checkerboardDiv.style.display = 'none';
-
 
     // Show 3D scene
     renderer.domElement.style.opacity = '1';
 
     // Clear drawing canvas
     drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+    // Update button styles
+    drawToggleBtn.classList.remove('active-mode');
+    viewToggleBtn.classList.add('active-mode');
   }
 }
 
 drawToggleBtn.addEventListener('click', () => {
-  isDrawingMode = !isDrawingMode;
-  controls.enabled = !isDrawingMode;
-  updateToggleBtn();
+  if (!isDrawingMode) {
+    isDrawingMode = true;
+    controls.enabled = false;
+    updateToggleBtn();
+  }
 });
 
+viewToggleBtn.addEventListener('click', () => {
+  if (isDrawingMode) {
+    isDrawingMode = false;
+    controls.enabled = true;
+    updateToggleBtn();
+  }
+});
+
+// Set initial state to view mode
+viewToggleBtn.classList.add('active-mode');
 updateToggleBtn();
 drawCanvas.style.pointerEvents = 'none'; // Start with drawing OFF
 
@@ -220,6 +235,10 @@ async function initializeRibbon() {
     if (svgPoints && svgPoints.length >= 2) {
       // Use the normalizePoints function to scale and center
       const normalizedPoints = normalizePoints(svgPoints);
+
+      // Reset camera before building the initial ribbon
+      resetCameraView();
+
       buildRibbonFromPoints(normalizedPoints, 1.2);
       lastRibbonBuildPoints = normalizedPoints.map(p => p.clone());
       lastRibbonBuildWidth = 1.2;
@@ -284,6 +303,9 @@ function endDrawing() {
 
     // Apply same smoothing we use for SVG paths
     const smoothedPoints = smoothDrawnPoints(points3D, 150);
+
+    // Reset camera before building the new ribbon
+    resetCameraView();
 
     // Build ribbon using the same approach as imported SVGs
     buildRibbonFromPoints(smoothedPoints);
@@ -548,6 +570,9 @@ if (importSvgBtn) {
           // Use the normalizePoints function to scale and center
           const normalizedPoints = normalizePoints(svgPoints);
 
+          // Reset camera before building the new ribbon
+          resetCameraView();
+
           buildRibbonFromPoints(normalizedPoints, 1.2);
           lastRibbonBuildPoints = normalizedPoints.map(p => p.clone());
           lastRibbonBuildWidth = 1.2;
@@ -560,4 +585,15 @@ if (importSvgBtn) {
       }
     }
   });
+}
+
+// Function to reset camera view to initial position
+function resetCameraView() {
+  // Reset to initial position and orientation
+  camera.position.set(0, 0, 10); // Set to your preferred default position
+  camera.lookAt(0, 0, 0);
+  controls.reset(); // Reset the orbit controls
+
+  // Optional: smooth transition to the reset position
+  controls.update();
 }

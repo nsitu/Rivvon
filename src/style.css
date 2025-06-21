@@ -80,8 +80,6 @@ body {
 }
 
 button {
-  position: absolute;
-  z-index: 2;
   padding: 0.7em 1.3em;
   border-radius: 1em;
   font-size: 1.1em;
@@ -93,34 +91,61 @@ button {
   user-select: none;
   min-width: 44px;
   min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 #saveBtn {
+  position: absolute;
+  z-index: 2;
   bottom: 10px;
   right: 10px;
 }
 
-#drawToggleBtn {
+#modeToggleButtons {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  z-index: 2;
   top: 10px;
   left: 10px;
 }
 
+#modeToggleButtons button {
+  height: 54px;
+}
+
+#drawToggleBtn {
+  border-radius: 1em 0 0 1em;
+}
+
+#viewToggleBtn {
+  border-radius: 0 1em 1em 0;
+}
+
+/* Add styles for active mode button */
+.active-mode {
+  background-color: #4CAF50;
+  /* Green background */
+  color: white;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+.active-mode .toggle-icon {
+  filter: brightness(1.2);
+}
+
+#modeToggleButtons button {
+  transition: all 0.3s ease;
+}
+
 #importSvgBtn {
+  position: absolute;
+  z-index: 2;
   bottom: 10px;
   left: 10px;
 }
 
-@media (pointer: coarse),
-(max-width: 600px) {
-  #drawToggleBtn {
-    padding: 1.3em 2.1em;
-    font-size: 1.5em;
-    border-radius: 1.8em;
-    min-width: 56px;
-    min-height: 56px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-  }
-}
 
 #checkerboard {
   position: fixed;
