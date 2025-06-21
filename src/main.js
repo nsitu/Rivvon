@@ -48,24 +48,47 @@ startAppBtn.addEventListener('click', async () => {
   }
 });
 
-// --- UI toggle for drawing mode (simplified, no camera handling) ---
+// --- UI toggle for drawing mode ---
 const drawToggleBtn = document.getElementById('drawToggleBtn');
+const checkerboardDiv = document.getElementById('checkerboard');
 let isDrawingMode = false;
+
+// Initially hide the checkerboard
+checkerboardDiv.style.display = 'none';
 
 function updateToggleBtn() {
   if (isDrawingMode) {
     drawToggleBtn.textContent = "Ok, Draw!";
     drawToggleBtn.style.background = "transparent";
+    drawCanvas.style.pointerEvents = 'auto';
+
+    // Show the checkerboard and draw canvas
+    checkerboardDiv.style.display = 'block';
+
+
+    // Hide 3D scene during drawing
+    renderer.domElement.style.opacity = '0';
+
   } else {
     drawToggleBtn.textContent = "+";
     drawToggleBtn.style.background = "#333";
+    drawCanvas.style.pointerEvents = 'none';
+
+    // Hide the checkerboard
+    checkerboardDiv.style.display = 'none';
+
+
+    // Show 3D scene
+    renderer.domElement.style.opacity = '1';
+
+    // Clear drawing canvas
+    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   }
 }
 
 drawToggleBtn.addEventListener('click', () => {
   isDrawingMode = !isDrawingMode;
   controls.enabled = !isDrawingMode;
-  drawCanvas.style.pointerEvents = isDrawingMode ? 'auto' : 'none';
   updateToggleBtn();
 });
 
@@ -227,52 +250,95 @@ resizeCanvas();
 
 // --- Drawing events (active only in draw mode) ---
 const drawPoints = [];
+
 function startDrawing(x, y) {
   drawPoints.length = 0;
-  drawPoints.push(screenToWorld(x, y));
+  // Store 2D screen coordinates instead of 3D world points
+  drawPoints.push({ x, y });
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 }
+
 function addDrawing(x, y) {
-  drawPoints.push(screenToWorld(x, y));
+  drawPoints.push({ x, y });
+
+  // Draw the line as visual feedback
   drawCtx.lineWidth = 2;
   drawCtx.strokeStyle = 'rgba(255,255,255,0.3)';
   drawCtx.beginPath();
   for (let i = 0; i < drawPoints.length - 1; i++) {
     const a = drawPoints[i];
     const b = drawPoints[i + 1];
-    const ax = (a.x / 10 + 0.5) * drawCanvas.width;
-    const ay = (1 - (a.y / 10 + 0.5)) * drawCanvas.height;
-    const bx = (b.x / 10 + 0.5) * drawCanvas.width;
-    const by = (1 - (b.y / 10 + 0.5)) * drawCanvas.height;
-    drawCtx.moveTo(ax, ay);
-    drawCtx.lineTo(bx, by);
+    drawCtx.moveTo(a.x, a.y);
+    drawCtx.lineTo(b.x, b.y);
   }
   drawCtx.stroke();
 }
 
 function endDrawing() {
   if (drawPoints.length >= 2) {
-    const smoothedPoints = smoothDrawnPoints(drawPoints, 150);
+    // Convert 2D screen points to normalized coordinates
+    const normalizedPoints = normalizeDrawingPoints(drawPoints);
+
+    // Create 3D points from normalized 2D points (all with same Z value)
+    const points3D = normalizedPoints.map(p => new THREE.Vector3(p.x, p.y, 0));
+
+    // Apply same smoothing we use for SVG paths
+    const smoothedPoints = smoothDrawnPoints(points3D, 150);
+
+    // Build ribbon using the same approach as imported SVGs
     buildRibbonFromPoints(smoothedPoints);
     drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   }
+
   // Automatically exit drawing mode
   if (isDrawingMode) {
     isDrawingMode = false;
     controls.enabled = true;
-    drawCanvas.style.pointerEvents = 'none';
-    updateToggleBtn();
+    updateToggleBtn(); // This will handle hiding checkerboard and showing 3D scene
   }
 }
 
+// Convert screen space drawing points to normalized coordinates
+function normalizeDrawingPoints(points) {
+  if (points.length < 2) return points;
+
+  // Find bounds of the drawing
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  points.forEach(p => {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  });
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const centerX = minX + width / 2;
+  const centerY = minY + height / 2;
+
+  // Scale factor to normalize to [-4, 4] range (similar to imported SVGs)
+  const maxDimension = Math.max(width, height);
+  const scale = maxDimension > 0 ? 8 / maxDimension : 1;
+
+  // Normalize points to center and scale
+  return points.map(p => ({
+    x: (p.x - centerX) * scale,
+    y: (p.y - centerY) * scale * -1 // Flip Y axis to match THREE.js coordinates
+  }));
+}
+
+// Modify smoothDrawnPoints to handle either 2D or 3D points
 function smoothDrawnPoints(points, numSamples = 100) {
   if (points.length < 2) return points;
+
   const curve = new CatmullRomCurve3(points, false, 'centripetal');
-  // false = not closed, you can change to true if you want loops
   const smoothed = [];
+
   for (let i = 0; i < numSamples; i++) {
     smoothed.push(curve.getPoint(i / (numSamples - 1)));
   }
+
   return smoothed;
 }
 
