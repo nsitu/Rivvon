@@ -10,5 +10,16 @@ export function initThree() {
     document.body.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    return { scene, camera, renderer, controls };
+
+    // Function to reset camera view to initial position
+    function resetCamera() {
+        // Reset to initial position and orientation
+        camera.position.set(0, 0, 10); // Set to your preferred default position
+        camera.lookAt(0, 0, 0);
+        controls.reset(); // Reset the orbit controls 
+        // Optional: smooth transition to the reset position
+        controls.update();
+    }
+
+    return { scene, camera, renderer, controls, resetCamera };
 }

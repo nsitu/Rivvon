@@ -147,6 +147,23 @@ button {
 }
 
 
+/* Hide app buttons and checkerboard initially */
+#drawToggleBtn,
+#viewToggleBtn,
+#saveBtn,
+#importSvgBtn,
+#checkerboard {
+  display: none;
+}
+
+/* When the app is active, we'll apply this class to body */
+body.app-active #drawToggleBtn,
+body.app-active #viewToggleBtn,
+body.app-active #saveBtn,
+body.app-active #importSvgBtn {
+  display: block;
+}
+
 #checkerboard {
   position: fixed;
   top: 0;
