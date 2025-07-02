@@ -106,7 +106,65 @@ function resizeCanvas() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 }
+
+// Handle orientation changes with multiple approaches for better mobile support
+function handleOrientationChange() {
+  // Debug logging for orientation changes (remove in production if needed)
+  console.log('Orientation change detected:', {
+    orientation: screen.orientation?.angle || 'unknown',
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    visual: window.visualViewport ? `${window.visualViewport.width}x${window.visualViewport.height}` : 'not supported'
+  });
+
+  // Use a timeout to account for mobile browser timing issues
+  // Some browsers need time to update window dimensions after orientation change
+  setTimeout(() => {
+    resizeCanvas();
+
+    // Also update slit scanner canvas if it exists
+    if (slitScanner && slitScanner.canvas) {
+      // The slit scanner may need to adjust its dimensions
+      // based on the new orientation
+      const videoAspect = slitScanner.canvas.width / slitScanner.canvas.height;
+      // Keep the existing width but ensure proper display
+      slitScanner.texture?.needsUpdate && (slitScanner.texture.needsUpdate = true);
+    }
+
+    // Force a re-render to ensure proper display
+    if (ribbon) {
+      ribbon.update(performance.now() / 1000);
+    }
+    renderer.render(scene, camera);
+  }, 100);
+
+  // Additional timeout for stubborn mobile browsers
+  setTimeout(() => {
+    resizeCanvas();
+    renderer.render(scene, camera);
+  }, 300);
+
+  // Also do an immediate resize attempt
+  resizeCanvas();
+}
+
+// Standard resize event
 window.addEventListener('resize', resizeCanvas);
+
+// Orientation change events (multiple approaches for better compatibility)
+// Legacy orientationchange event (still widely supported)
+window.addEventListener('orientationchange', handleOrientationChange);
+
+// Modern screen orientation API (when available)
+if (screen.orientation) {
+  screen.orientation.addEventListener('change', handleOrientationChange);
+}
+
+// Visual viewport API for more accurate mobile handling (when available)
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resizeCanvas);
+}
+
+// Initial canvas setup
 resizeCanvas();
 
 // --- Drawing callback ---
