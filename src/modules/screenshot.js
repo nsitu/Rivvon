@@ -78,17 +78,37 @@ export class ScreenshotManager {
     }
 
     /**
-     * Captures and uploads the current scene as a screenshot
+     * Downloads a blob as a file
+     * @param {Blob} blob - The blob to download
+     * @param {string} filename - The filename for the download
+     */
+    downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    /**
+     * Captures and uploads the current scene as a screenshot, and also downloads it locally
      * @returns {Promise<Object>} The upload result
      */
-    async captureAndUpload() {
+    async captureAndSave() {
         try {
             // Capture screenshot
             const blob = await this.captureScreenshot();
 
             // Create file from blob
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const file = new File([blob], `rivvon-screenshot-${timestamp}.png`, { type: 'image/png' });
+            const filename = `rivvon-screenshot-${timestamp}.png`;
+            const file = new File([blob], filename, { type: 'image/png' });
+
+            // Download the screenshot locally
+            this.downloadBlob(blob, filename);
 
             // Upload to pCloud
             const result = await this.uploadFileToPCloud(file);

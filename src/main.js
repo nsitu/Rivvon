@@ -173,11 +173,11 @@ if (saveBtn) {
     saveBtn.textContent = 'Saving...';
 
     try {
-      await screenshotManager.captureAndUpload();
-      alert('Screenshot uploaded successfully!');
+      await screenshotManager.captureAndSave();
+      console.log('Image saved to pCloud.');
     } catch (error) {
-      console.error('Error saving screenshot:', error);
-      alert('Failed to save screenshot: ' + error.message);
+      console.error('Error saving image:', error);
+      alert('Failed to save image: ' + error.message);
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Save';
